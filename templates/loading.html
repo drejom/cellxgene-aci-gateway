@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CellxGene — Starting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Sora', system-ui, sans-serif;
+  background: #fff;
+  color: #1a1a1a;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.logo-area {
+  padding: 52px 60px 40px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.logo-text { display: flex; flex-direction: column; gap: 1px; }
+.logo-name { font-size: 22px; font-weight: 600; letter-spacing: -0.03em; color: #111; line-height: 1; }
+.logo-sub { font-size: 11px; color: #aaa; letter-spacing: 0.06em; text-transform: uppercase; }
+
+main { padding: 0 60px 40px; flex: 1; max-width: 820px; }
+
+.status-card {
+  border: 1px solid #ebebeb;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.status-header {
+  padding: 24px 28px;
+  border-bottom: 1px solid #f4f4f4;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.spinner {
+  width: 18px; height: 18px;
+  border: 2px solid #e5e7eb;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.status-title {
+  font-size: 15px;
+  font-weight: 500;
+  color: #111;
+}
+.status-title .dataset {
+  font-family: 'Fira Code', monospace;
+  font-size: 13px;
+  color: #2563eb;
+}
+.status-body { padding: 20px 28px; }
+.elapsed {
+  font-size: 13px;
+  color: #9ca3af;
+  margin-bottom: 16px;
+}
+.elapsed strong { color: #6b7280; font-weight: 500; }
+.output {
+  font-family: 'Fira Code', monospace;
+  font-size: 11px;
+  color: #9ca3af;
+  background: #fafafa;
+  border: 1px solid #f0f0f0;
+  border-radius: 6px;
+  padding: 12px 14px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 120px;
+  overflow-y: auto;
+  line-height: 1.6;
+}
+.notice-row {
+  padding: 14px 28px;
+  background: #f9f9f9;
+  font-size: 12.5px;
+  color: #999;
+  border-top: 1px solid #f0f0f0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 99px; white-space: nowrap;
+}
+.pill-dot { width: 5px; height: 5px; border-radius: 50%; }
+.pill-provisioning { background: #fff7ed; color: #c2410c; }
+.pill-provisioning .pill-dot { background: #f97316; animation: pulse 1.2s ease-in-out infinite; }
+.pill-loading  { background: #eff6ff; color: #1d4ed8; }
+.pill-loading .pill-dot  { background: #3b82f6; animation: pulse 1.2s ease-in-out infinite; }
+.pill-ready    { background: #f0fdf4; color: #15803d; }
+.pill-ready .pill-dot    { background: #22c55e; }
+.pill-error    { background: #fef2f2; color: #b91c1c; }
+.pill-error .pill-dot    { background: #ef4444; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.notice-row strong { color: #666; font-weight: 500; }
+
+footer { padding: 0 60px 48px; max-width: 820px; }
+.back-link {
+  display: inline-block;
+  margin-top: 16px;
+  font-size: 13px;
+  color: #9ca3af;
+  text-decoration: none;
+}
+.back-link:hover { color: #2563eb; }
+</style>
+</head>
+<body>
+
+<div class="logo-area">
+  <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" fill="none" viewBox="0 0 23 23">
+    <path fill="#000" d="M3.108 5.98H.522A.52.52 0 0 0 0 6.5v15.66c0 .289.234.522.522.522h2.586a.52.52 0 0 0 .521-.521V6.502a.52.52 0 0 0-.521-.523M22.674 22.161a.525.525 0 0 1-.522.522H6.501a.525.525 0 0 1-.522-.522V6.51c0-.286.236-.522.522-.522h15.651c.286 0 .522.236.522.522zM9.61 18.532c0 .286.236.522.521.522h8.393a.525.525 0 0 0 .522-.522v-8.393a.525.525 0 0 0-.522-.521H10.13a.525.525 0 0 0-.521.521z"/>
+    <path fill="#8282FF" d="M22.157 0H6.497a.52.52 0 0 0-.522.522v2.586c0 .288.233.521.522.521h15.66a.52.52 0 0 0 .522-.521V.522A.52.52 0 0 0 22.157 0"/>
+  </svg>
+  <div class="logo-text">
+    <span class="logo-name">CellxGene</span>
+    <span class="logo-sub">Single-Cell Explorer</span>
+  </div>
+</div>
+
+<main>
+  <div class="status-card">
+    <div class="status-header">
+      <div class="spinner"></div>
+      <div class="status-title">
+        Starting dataset&hellip;
+      </div>
+    </div>
+    <div class="status-body">
+      <div class="elapsed">
+        Started <strong>{{ launchtime.isoformat(' ')[:19] }}</strong>
+        &nbsp;·&nbsp; Elapsed <strong><span id="clock">0s</span></strong>
+      </div>
+      {% if all_output %}
+      <div class="output" id="output">{{ all_output }}</div>
+      {% endif %}
+    </div>
+    <div class="notice-row">
+      <span class="pill pill-provisioning" id="status-pill"><span class="pill-dot"></span>Provisioning</span>
+      Allow <strong>2–3 minutes</strong> for the container to provision and load the dataset
+    </div>
+  </div>
+</main>
+
+<footer>
+  <a href="{{ url_for('index') }}" class="back-link">← Back to datasets</a>
+</footer>
+
+<script>
+// Scroll output to bottom on load
+var out = document.getElementById('output');
+if (out) out.scrollTop = out.scrollHeight;
+
+// Derive dataset name from URL path: /view/<name>/
+var dataset = decodeURIComponent(window.location.pathname.split('/').filter(Boolean)[1] || '');
+var statusPill = document.getElementById('status-pill');
+var PILL_STATES = {
+  provisioning: { cls: 'pill-provisioning', label: 'Provisioning' },
+  loading:      { cls: 'pill-loading',      label: 'Loading' },
+  ready:        { cls: 'pill-ready',        label: 'Ready — redirecting…' },
+  error:        { cls: 'pill-error',        label: 'Error' },
+};
+async function pollStatus() {
+  try {
+    var r = await fetch('/api/status');
+    var data = await r.json();
+    var state = (data.datasets || {})[dataset] || 'provisioning';
+    var s = PILL_STATES[state] || PILL_STATES.provisioning;
+    statusPill.className = 'pill ' + s.cls;
+    statusPill.innerHTML = '<span class="pill-dot"></span>' + s.label;
+    if (state === 'ready') {
+      setTimeout(function() { window.location.reload(); }, 1000);
+    }
+  } catch(e) {}
+}
+pollStatus();
+setInterval(pollStatus, 3000);
+
+// Live elapsed clock — server start time injected from Jinja
+var launchTime = new Date("{{ launchtime.isoformat() }}Z");
+var clockEl = document.getElementById('clock');
+function updateClock() {
+  var secs = Math.floor((Date.now() - launchTime.getTime()) / 1000);
+  if (secs < 0) secs = 0;
+  var m = Math.floor(secs / 60);
+  var s = secs % 60;
+  clockEl.textContent = m > 0 ? m + 'm ' + s + 's' : s + 's';
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// Auto-reload page every ~6s to get fresh output
+var count = 0;
+setInterval(function() {
+  if (count++ > 5) { window.location.reload(); }
+}, 1000);
+</script>
+
+</body>
+</html>

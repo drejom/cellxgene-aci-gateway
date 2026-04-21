@@ -1,0 +1,13 @@
+services:
+  gateway:
+    image: ghcr.io/drejom/cellxgene-aci-gateway:latest
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    ports:
+      - "5005:5005"
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/logs
+    restart: unless-stopped
