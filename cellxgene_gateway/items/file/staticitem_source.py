@@ -39,3 +39,16 @@ class StaticItemSource(ItemSource):
 
     def is_authorized(self, descriptor):
         return descriptor.strip("/") in self._datasets
+
+    def get_local_path(self, item: FileItem) -> str:
+        # No local path — datasets are on Azure Files, accessed by ACI directly.
+        return item.descriptor
+
+    def get_annotations_subpath(self, item) -> str:
+        return ""
+
+    def create_annotation(self, item: FileItem, name: str) -> FileItem:
+        raise NotImplementedError("Annotations not supported with static item source")
+
+    def update(self, item: FileItem) -> None:
+        pass
