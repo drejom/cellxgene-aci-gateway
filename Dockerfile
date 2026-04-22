@@ -30,6 +30,8 @@ ENV PROXY_FIX_FOR=1
 ENV PROXY_FIX_PROTO=1
 ENV PROXY_FIX_HOST=1
 ENV CELLXGENE_BACKEND=aci
+# Explicit dataset allowlist (comma-separated filenames). If set, overrides filesystem scan.
+# ENV CELLXGENE_DATASETS=dataset1.h5ad,dataset2.h5ad
 
 EXPOSE 5005
 

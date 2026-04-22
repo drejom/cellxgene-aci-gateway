@@ -138,6 +138,7 @@ def initialize_data_sources():
     )
     logger = logging.getLogger(__name__)
 
+    cellxgene_datasets = os.environ.get("CELLXGENE_DATASETS", None)
     cellxgene_data = os.environ.get("CELLXGENE_DATA", None)
     cellxgene_bucket = os.environ.get("CELLXGENE_BUCKET", None)
 
@@ -157,8 +158,17 @@ def initialize_data_sources():
         default_item_source = file_source
         logger.info("Initialized local file data source")
         logger.debug(f"Data directory: {cellxgene_data}")
+    if cellxgene_datasets is not None:
+        from cellxgene_gateway.items.file.staticitem_source import StaticItemSource
+
+        datasets = [d.strip() for d in cellxgene_datasets.split(",") if d.strip()]
+        static_source = StaticItemSource(datasets)
+        item_sources.clear()
+        item_sources.append(static_source)
+        default_item_source = static_source
+        logger.info(f"Initialized static dataset list: {datasets}")
     if len(item_sources) == 0:
-        raise Exception("Please specify CELLXGENE_DATA or CELLXGENE_BUCKET")
+        raise Exception("Please specify CELLXGENE_DATASETS, CELLXGENE_DATA, or CELLXGENE_BUCKET")
     flask_util.include_source_in_url = len(item_sources) > 1
 
 
