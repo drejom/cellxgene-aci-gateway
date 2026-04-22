@@ -99,6 +99,40 @@ if backend_type == "aci":
 
     CacheEntry.serve_content = _aci_serve_content
 
+    # Background liveness probe — evicts cache entries whose ACI HTTP endpoint is dead.
+    # Runs every 30s; prevents stale 'ready' pills after external ACI deletion.
+    import threading
+    import urllib.request
+
+    def _liveness_probe():
+        import cellxgene_gateway.backend_cache as _bc
+        _log = logging.getLogger("cellxgene_gateway.aci_backend")
+        while True:
+            try:
+                cache = _bc.cache  # BackendCache singleton
+                if cache is not None:
+                    for entry in list(cache.entry_list):
+                        if (entry.status == _CacheEntryStatus.loaded
+                                and getattr(entry, "_aci_base_url", None)):
+                            try:
+                                urllib.request.urlopen(
+                                    entry._aci_base_url, timeout=5
+                                )
+                            except Exception:
+                                _log.warning(
+                                    f"[ACI] liveness probe failed for "
+                                    f"{getattr(entry, '_aci_group_name', '?')} — evicting"
+                                )
+                                entry._aci_base_url = None
+                                entry._aci_group_name = None
+                                entry.status = _CacheEntryStatus.terminated
+            except Exception as e:
+                _log.warning(f"[ACI] liveness probe loop error: {e}")
+            __import__("time").sleep(30)
+
+    _probe_thread = threading.Thread(target=_liveness_probe, daemon=True, name="aci-liveness")
+    _probe_thread.start()
+
     import logging
     logging.getLogger("cellxgene_gateway").info(
         "ACIBackend activated — containers will be provisioned in Azure"
