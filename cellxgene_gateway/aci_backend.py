@@ -215,7 +215,7 @@ class ACIBackend:
                 share_name=ACI_FILES_SHARE,
                 storage_account_name=ACI_FILES_ACCOUNT,
                 storage_account_key=ACI_FILES_KEY,
-                read_only=True,
+                read_only=False,
             )
         )
 
@@ -230,7 +230,7 @@ class ACIBackend:
                 )
             ),
             ports=[ContainerPort(port=CELLXGENE_PORT, protocol="TCP")],
-            volume_mounts=[VolumeMount(name="cellxgene-data", mount_path="/data", read_only=True)],
+            volume_mounts=[VolumeMount(name="cellxgene-data", mount_path="/data", read_only=False)],
             environment_variables=[],
         )
 
