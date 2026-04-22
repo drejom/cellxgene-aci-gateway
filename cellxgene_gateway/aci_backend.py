@@ -198,7 +198,8 @@ class ACIBackend:
         # Azure Files volume mounted at /data — file already present, no download needed
         startup_script = (
             f"cellxgene launch --host 0.0.0.0 --port {CELLXGENE_PORT} "
-            f"--disable-diffexp --disable-annotations "
+            f"--disable-diffexp "
+            f"--annotations-dir /data/annotations/ "
             f"--title '{os.path.splitext(h5ad_filename)[0]}' "
             f"{extra_flags} "
             f"/data/{h5ad_filename}"
