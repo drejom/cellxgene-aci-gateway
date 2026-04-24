@@ -14,6 +14,7 @@ import subprocess
 import hmac
 import hashlib
 import logging
+import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -69,18 +70,20 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(b"Forbidden\n")
             return
 
-        log.info("Deploying %s ...", NOMAD_JOB)
-        try:
-            out = redeploy()
-            log.info("Deploy OK: %s", out[:200])
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(f"OK\n{out}\n".encode())
-        except Exception as e:
-            log.error("Deploy failed: %s", e)
-            self.send_response(500)
-            self.end_headers()
-            self.wfile.write(f"ERROR: {e}\n".encode())
+        # Respond immediately, run deploy in background (avoids proxy timeout on long nomad output)
+        self.send_response(202)
+        self.end_headers()
+        self.wfile.write(b"Accepted\n")
+
+        def _run():
+            log.info("Deploying %s ...", NOMAD_JOB)
+            try:
+                out = redeploy()
+                log.info("Deploy OK: %s", out[:200])
+            except Exception as e:
+                log.error("Deploy failed: %s", e)
+
+        threading.Thread(target=_run, daemon=True).start()
 
     def do_GET(self):
         if self.path == "/health":
