@@ -100,7 +100,6 @@ jobs:
     permissions:
       contents: read
       packages: read
-      security-events: write
 
     strategy:
       fail-fast: false
@@ -135,10 +134,11 @@ jobs:
           image-src: docker
 
       - name: Upload Trivy results
-        uses: github/codeql-action/upload-sarif@v3
+        uses: actions/upload-artifact@v4
         with:
-          sarif_file: trivy-${{ matrix.name }}.sarif
-          category: trivy-${{ matrix.name }}
+          name: trivy-${{ matrix.name }}
+          path: trivy-${{ matrix.name }}.sarif
+          retention-days: 30
 
   deploy:
     name: Redeploy Nomad job
