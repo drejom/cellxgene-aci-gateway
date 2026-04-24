@@ -172,6 +172,8 @@ class ACIBackend:
                 ready_timeout = int(os.environ.get("ACI_READY_TIMEOUT", 2400))
                 cache_entry.append_output(f"Container already running, waiting for cellxgene...\n")
                 _log_timing("container_reused", h5ad_filename, elapsed_s=time.monotonic()-t_start)
+                _az_check_interval = 30
+                _az_check_next = _az_check_interval
                 while ready_elapsed < ready_timeout:
                     try:
                         urllib.request.urlopen(cellxgene_url, timeout=5)
@@ -179,9 +181,28 @@ class ACIBackend:
                         _log_timing("cellxgene_ready", h5ad_filename, elapsed_s=time.monotonic()-t_start, reused=True)
                         break
                     except Exception:
-                        time.sleep(10)
-                        ready_elapsed += 10
-                        cache_entry.append_output(f"Waiting for cellxgene... ({ready_elapsed}s)\n")
+                        pass
+                    if ready_elapsed >= _az_check_next:
+                        try:
+                            cg = self._client.container_groups.get(RESOURCE_GROUP, group_name)
+                            c_state = (cg.containers[0].instance_view.current_state.state
+                                       if cg.containers and cg.containers[0].instance_view else None)
+                            detail = (cg.containers[0].instance_view.current_state.detail_status
+                                      if cg.containers and cg.containers[0].instance_view else None)
+                            logger.info(f"[ACI] {group_name} container_state={c_state} detail={detail} elapsed={ready_elapsed}s")
+                            if c_state in ("Terminated", "Waiting") or cg.provisioning_state in ("Failed", "Canceled"):
+                                msg = f"ACI container crashed during load (state={c_state}, detail={detail})"
+                                logger.error(f"[ACI] {group_name} {msg}")
+                                _log_timing("cellxgene_crash", h5ad_filename, elapsed_s=time.monotonic()-t_start,
+                                            state=c_state, detail=detail)
+                                cache_entry.set_error(msg, c_state, 500)
+                                return
+                        except Exception as az_e:
+                            logger.warning(f"[ACI] Azure state check failed: {az_e}")
+                        _az_check_next += _az_check_interval
+                    time.sleep(10)
+                    ready_elapsed += 10
+                    cache_entry.append_output(f"Waiting for cellxgene... ({ready_elapsed}s)\n")
                 cache_entry._aci_group_name = group_name
                 cache_entry._aci_base_url = cellxgene_url
                 cache_entry.set_loaded(group_name)
@@ -302,12 +323,14 @@ class ACIBackend:
             cache_entry.set_error(msg, "", 504)
             raise ProcessException.from_cache_entry(cache_entry)
 
-        # Wait for cellxgene to finish loading (poll HTTP)
+        # Wait for cellxgene to finish loading (poll HTTP + Azure container state)
         # Large datasets (>10GB) can take 10+ minutes to load into memory
         cellxgene_url = f"http://{private_ip}:{CELLXGENE_PORT}"
         import urllib.request
         ready_elapsed = 0
         ready_timeout = int(os.environ.get("ACI_READY_TIMEOUT", 2400))  # 40 min default — pankbase needs ~22 min
+        _az_check_interval = 30  # check Azure container state every N seconds
+        _az_check_next = _az_check_interval
         while ready_elapsed < ready_timeout:
             try:
                 urllib.request.urlopen(cellxgene_url, timeout=5)
@@ -315,9 +338,29 @@ class ACIBackend:
                 _log_timing("cellxgene_ready", h5ad_filename, elapsed_s=time.monotonic()-t_start, reused=False)
                 break
             except Exception:
-                time.sleep(10)
-                ready_elapsed += 10
-                cache_entry.append_output(f"Waiting for cellxgene... ({ready_elapsed}s)\n")
+                pass
+            # Periodically check Azure container state — catch crashes/OOM before timeout
+            if ready_elapsed >= _az_check_next:
+                try:
+                    cg = self._client.container_groups.get(RESOURCE_GROUP, group_name)
+                    c_state = (cg.containers[0].instance_view.current_state.state
+                               if cg.containers and cg.containers[0].instance_view else None)
+                    detail = (cg.containers[0].instance_view.current_state.detail_status
+                              if cg.containers and cg.containers[0].instance_view else None)
+                    logger.info(f"[ACI] {group_name} container_state={c_state} detail={detail} elapsed={ready_elapsed}s")
+                    if c_state in ("Terminated", "Waiting") or cg.provisioning_state in ("Failed", "Canceled"):
+                        msg = f"ACI container crashed during load (state={c_state}, detail={detail})"
+                        logger.error(f"[ACI] {group_name} {msg}")
+                        _log_timing("cellxgene_crash", h5ad_filename, elapsed_s=time.monotonic()-t_start,
+                                    state=c_state, detail=detail)
+                        cache_entry.set_error(msg, c_state, 500)
+                        return
+                except Exception as az_e:
+                    logger.warning(f"[ACI] Azure state check failed: {az_e}")
+                _az_check_next += _az_check_interval
+            time.sleep(10)
+            ready_elapsed += 10
+            cache_entry.append_output(f"Waiting for cellxgene... ({ready_elapsed}s)\n")
 
         # Store private IP in pid field (gateway uses cellxgene_basepath())
         # We patch cache_entry to return ACI IP instead of localhost
