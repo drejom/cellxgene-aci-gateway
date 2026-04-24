@@ -72,26 +72,37 @@ if backend_type == "aci":
 
     # Patch serve_content to detect dead ACI containers and evict cache
     import requests as _requests
+    import urllib.request as _urllib_request
     from cellxgene_gateway.cache_entry import CacheEntryStatus as _CacheEntryStatus
     _orig_serve = CacheEntry.serve_content
 
+    def _aci_evict(entry, reason):
+        import logging
+        logging.getLogger("cellxgene_gateway.aci_backend").warning(
+            f"[ACI] evicting {getattr(entry, '_aci_group_name', '?')}: {reason}"
+        )
+        entry._aci_base_url = None
+        entry._aci_group_name = None
+        entry.status = _CacheEntryStatus.terminated
+
     def _aci_serve_content(self, path):
+        # Pre-flight: quick connect check before passing to upstream proxy
+        base_url = getattr(self, "_aci_base_url", None)
+        if base_url and self.status == _CacheEntryStatus.loaded:
+            try:
+                _urllib_request.urlopen(base_url, timeout=5)
+            except Exception as e:
+                _aci_evict(self, f"pre-flight failed: {e}")
+                from flask import make_response
+                return make_response(
+                    "Dataset container is unavailable — please refresh to restart it.", 503
+                )
         try:
             return _orig_serve(self, path)
         except (_requests.exceptions.ConnectionError,
                 _requests.exceptions.ConnectTimeout,
                 _requests.exceptions.Timeout) as e:
-            # ACI container is gone or unreachable — evict cache so next request reprovisioned
-            import logging
-            logging.getLogger("cellxgene_gateway.aci_backend").warning(
-                f"[ACI] proxy connection failed for {getattr(self, '_aci_group_name', '?')}, "
-                f"evicting cache entry: {e}"
-            )
-            # Clear ACI state so next launch() call reprovisioned fresh
-            self._aci_base_url = None
-            self._aci_group_name = None
-            self.status = _CacheEntryStatus.terminated
-            # Return a clean 503 instead of a traceback 500
+            _aci_evict(self, f"proxy error: {e}")
             from flask import make_response
             return make_response(
                 "Dataset container is unavailable — please refresh to restart it.", 503
