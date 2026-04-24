@@ -7,6 +7,7 @@ Stage 2: CELLXGENE_BACKEND=subprocess (default, no change)
 Stage 3: CELLXGENE_BACKEND=aci
 """
 import os
+import logging
 
 backend_type = os.environ.get("CELLXGENE_BACKEND", "subprocess").lower()
 
