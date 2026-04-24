@@ -3,9 +3,12 @@ FROM python:3.11-slim
 # Minimal cellxgene image for running inside ACI.
 # Built separately and pushed to your private registry.
 
-# werkzeug>=3.0 and flask>=3.0 break cellxgene 1.3.0 (AssertionError: applications must write bytes)
-# Pin to last known-good versions — see github.com/Novartis/cellxgene-gateway/issues/87
-RUN pip install --no-cache-dir cellxgene==1.3.0 werkzeug==2.3.0 flask==2.2.2
+# cellxgene==1.3.0 requires Flask>=3.0 but werkzeug>=3.0 breaks binary responses
+# (AssertionError: applications must write bytes on large datasets)
+# Fix: install cellxgene first, then force-downgrade werkzeug to last compatible version
+# https://github.com/Novartis/cellxgene-gateway/issues/87
+RUN pip install --no-cache-dir cellxgene==1.3.0 && \
+    pip install --no-cache-dir --force-reinstall "werkzeug==2.3.7"
 
 # cellxgene listens on 0.0.0.0:5005 (port passed via CLI args in aci_backend.py)
 EXPOSE 5005
