@@ -169,7 +169,7 @@ class ACIBackend:
                 cellxgene_url = f"http://{private_ip}:{CELLXGENE_PORT}"
                 import urllib.request
                 ready_elapsed = 0
-                ready_timeout = 900
+                ready_timeout = int(os.environ.get("ACI_READY_TIMEOUT", 2400))
                 cache_entry.append_output(f"Container already running, waiting for cellxgene...\n")
                 _log_timing("container_reused", h5ad_filename, elapsed_s=time.monotonic()-t_start)
                 while ready_elapsed < ready_timeout:
@@ -307,7 +307,7 @@ class ACIBackend:
         cellxgene_url = f"http://{private_ip}:{CELLXGENE_PORT}"
         import urllib.request
         ready_elapsed = 0
-        ready_timeout = 900  # 15 min — enough for 25GB dataset
+        ready_timeout = int(os.environ.get("ACI_READY_TIMEOUT", 2400))  # 40 min default — pankbase needs ~22 min
         while ready_elapsed < ready_timeout:
             try:
                 urllib.request.urlopen(cellxgene_url, timeout=5)
