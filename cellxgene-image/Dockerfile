@@ -30,15 +30,17 @@ FROM python:3.11-slim
 #   Fix: patch the installed file to wrap with bytes(): return bytes(builder.Output())
 #   This is a one-character fix that cannot be upstreamed to cellxgene==1.3.0 (frozen tag).
 #   See: https://github.com/chanzuckerberg/cellxgene/blob/1.3.0/server/common/fbs/matrix.py
-RUN pip install --no-cache-dir cellxgene==1.3.0 && \
+RUN pip install --no-cache-dir cellxgene==1.3.0 gunicorn>=21.2 && \
     FBS_MATRIX=$(python3 -c "import server.common.fbs.matrix as m; print(m.__file__)") && \
     sed -i 's/return builder\.Output()/return bytes(builder.Output())/' "$FBS_MATRIX" && \
     echo "Patched $FBS_MATRIX" && \
     grep 'return bytes' "$FBS_MATRIX"
 
-# cellxgene listens on 0.0.0.0:5005 (port passed via CLI args in aci_backend.py)
+# cellxgene listens on 0.0.0.0:5005 (port passed via CLI args in aci_backend.py).
+# We run it via gunicorn --threads to allow concurrent requests — without this,
+# werkzeug serialises all requests and large binary responses (3-10MB UMAP/annotations)
+# cause subsequent concurrent fetches to time out in the browser.
 EXPOSE 5005
 
-# Not used directly — ACI backend passes the full cellxgene CLI command.
-# This image just needs cellxgene on PATH.
+# Not used directly — ACI backend passes the full command via aci_backend.py.
 ENTRYPOINT ["cellxgene"]

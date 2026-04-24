@@ -216,12 +216,17 @@ class ACIBackend:
             if "ResourceNotFound" not in str(e) and "NotFound" not in str(e):
                 logger.warning(f"[ACI] pre-check error (continuing): {e}")
 
-        # Azure Files volume mounted at /data — file already present, no download needed
+        # Azure Files volume mounted at /data — file already present, no download needed.
+        # cellxgene launch uses Flask's dev server with threaded=True (non-debug mode default),
+        # so concurrent requests are handled. The primary concurrency fix is the bytearray patch
+        # in the Dockerfile (builder.Output() → bytes(builder.Output())) which prevents
+        # werkzeug 3.x from dropping binary responses mid-stream.
+        title = os.path.splitext(h5ad_filename)[0]
         startup_script = (
             f"cellxgene launch --host 0.0.0.0 --port {CELLXGENE_PORT} "
             f"--disable-diffexp "
             f"--annotations-dir /data/annotations/ "
-            f"--title '{os.path.splitext(h5ad_filename)[0]}' "
+            f"--title '{title}' "
             f"{extra_flags} "
             f"/data/{h5ad_filename}"
         )

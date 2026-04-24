@@ -107,6 +107,41 @@ def _index_datasets():
 if os.environ.get("CELLXGENE_BACKEND", "subprocess").lower() == "aci":
     import cellxgene_gateway.backend_cache_patch  # noqa: F401
 
-# 5. Start server
+# 5. Start server via gunicorn (multi-worker, not werkzeug dev server)
+# werkzeug dev server serialises all requests — with 435k-cell datasets returning
+# 3-10MB binary payloads, concurrent annotation/layout/gene fetches queue up and
+# the browser fetch() times out, showing 'Unexpected HTTP error'.
+# gunicorn with sync workers + threads handles concurrent requests correctly.
 port = int(os.environ.get("GATEWAY_PORT", 5005))
-gw.app.run(host="0.0.0.0", port=port)
+workers = int(os.environ.get("GATEWAY_WORKERS", 2))
+threads = int(os.environ.get("GATEWAY_THREADS", 4))
+timeout = int(os.environ.get("GATEWAY_TIMEOUT", 120))
+
+import gunicorn.app.base
+
+class _StandaloneApp(gunicorn.app.base.BaseApplication):
+    def __init__(self, app, options=None):
+        self.options = options or {}
+        self.application = app
+        super().__init__()
+
+    def load_config(self):
+        for k, v in self.options.items():
+            if k in self.cfg.settings:
+                self.cfg.set(k.lower(), v)
+
+    def load(self):
+        return self.application
+
+_StandaloneApp(gw.app, {
+    "bind": f"0.0.0.0:{port}",
+    "workers": workers,
+    "threads": threads,
+    "timeout": timeout,
+    "worker_class": "sync",
+    "accesslog": "-",
+    "errorlog": "-",
+    "loglevel": "info",
+    "forwarded_allow_ips": "*",
+    "proxy_protocol": False,
+}).run()
