@@ -148,10 +148,16 @@ jobs:
 
     steps:
       - name: Trigger deploy webhook
+        # Pass cellxgene_image so the webhook updates ACI_CELLXGENE_IMAGE atomically.
+        # Without this, the job keeps the old tag and ACI pulls a stale image.
+        # SHA format matches docker/metadata-action type=sha,prefix=sha- output.
         run: |
+          SHA="sha-$(echo '${{ github.sha }}' | cut -c1-7)"
           curl -fsS \
             -X POST https://deploy-cellxgene.omeally.com/deploy \
-            -H "X-Webhook-Secret: ${{ secrets.CELLXGENE_DEPLOY_SECRET }}"
+            -H "X-Webhook-Secret: ${{ secrets.CELLXGENE_DEPLOY_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"cellxgene_image\":\"ghcr.io/drejom/cellxgene-aci-gateway/cellxgene:$SHA\"}"
 
   build-cellxgene:
     name: cellxgene ACI image
@@ -176,8 +182,12 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/cellxgene
           tags: |
-            type=raw,value=1.3.0
+            type=sha,prefix=sha-
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            # NOTE: no static '1.3.0' tag — that tag was frozen at first build and
+            # caused ACI to silently pull a stale image. Use sha- for immutability.
+            # ACI_CELLXGENE_IMAGE in the Nomad job is updated by the deploy webhook
+            # which receives the sha tag from the CI deploy step.
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

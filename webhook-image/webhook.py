@@ -26,7 +26,14 @@ NOMAD_JOB = os.environ.get("NOMAD_JOB", "cellxgene-gateway")
 PORT = int(os.environ.get("PORT", "9000"))
 
 
-def redeploy():
+def redeploy(cellxgene_image=None):
+    """Inspect the live Nomad job spec, optionally update ACI_CELLXGENE_IMAGE, redeploy.
+
+    cellxgene_image: if provided, overrides ACI_CELLXGENE_IMAGE in the job env.
+      This is how CI pins the exact sha- tag built in the same workflow run,
+      avoiding the stale-tag problem where 'cellxgene:1.3.0' or ':latest' might
+      point to an old image already cached on the ACI host.
+    """
     # Inspect current job spec
     r = subprocess.run(
         ["nomad", "job", "inspect", NOMAD_JOB],
@@ -36,9 +43,18 @@ def redeploy():
         raise RuntimeError(f"nomad job inspect failed: {r.stderr}")
     job = json.loads(r.stdout)
 
-    # Bump job version to force redeploy (clear stable version)
-    job["Job"]["Version"] = None
-    job["Job"]["JobModifyIndex"] = 0
+    # Optionally pin the cellxgene ACI image to the sha built in this CI run
+    if cellxgene_image:
+        env = job["Job"]["TaskGroups"][0]["Tasks"][0]["Env"]
+        old = env.get("ACI_CELLXGENE_IMAGE", "(unset)")
+        env["ACI_CELLXGENE_IMAGE"] = cellxgene_image
+        log.info("ACI_CELLXGENE_IMAGE: %s -> %s", old, cellxgene_image)
+
+    # Clear scheduling indexes so Nomad treats this as a new deployment
+    for k in ["Version", "JobModifyIndex", "ModifyIndex", "CreateIndex"]:
+        job["Job"][k] = 0
+    job["Job"]["SubmitTime"] = None
+    job["Job"]["Stop"] = False
 
     # Run it
     r = subprocess.run(
@@ -70,15 +86,25 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(b"Forbidden\n")
             return
 
+        # Read optional JSON body (e.g. {"cellxgene_image": "ghcr.io/.../cellxgene:sha-abc1234"})
+        cellxgene_image = None
+        length = int(self.headers.get("Content-Length", 0))
+        if length:
+            try:
+                body = json.loads(self.rfile.read(length))
+                cellxgene_image = body.get("cellxgene_image")
+            except Exception:
+                pass
+
         # Respond immediately, run deploy in background (avoids proxy timeout on long nomad output)
         self.send_response(202)
         self.end_headers()
         self.wfile.write(b"Accepted\n")
 
         def _run():
-            log.info("Deploying %s ...", NOMAD_JOB)
+            log.info("Deploying %s (cellxgene_image=%s)...", NOMAD_JOB, cellxgene_image)
             try:
-                out = redeploy()
+                out = redeploy(cellxgene_image=cellxgene_image)
                 log.info("Deploy OK: %s", out[:200])
             except Exception as e:
                 log.error("Deploy failed: %s", e)
