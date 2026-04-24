@@ -20,8 +20,21 @@ FROM python:3.11-slim
 #   DO NOT pin werkzeug below 3.0.3 with Flask 3.x.
 #
 # Conclusion: let pip resolve werkzeug naturally (will be 3.x, compatible with Flask 3.x).
-# The bytes assertion is a cellxgene data-encoding issue, not a werkzeug version issue.
-RUN pip install --no-cache-dir cellxgene==1.3.0
+#
+# Problem 3: "AssertionError: applications must write bytes" on ALL binary endpoints
+#   (layout/obs, annotations/obs, data/var) with werkzeug 3.x
+#   Root cause: flatbuffers Python library builder.Output() returns bytearray, not bytes.
+#   werkzeug 2.x accepted bytearray; werkzeug 3.x enforces bytes strictly.
+#   Affected code: server/common/fbs/matrix.py encode_matrix_fbs() last line:
+#     return builder.Output()  # bytearray — werkzeug 3.x rejects this
+#   Fix: patch the installed file to wrap with bytes(): return bytes(builder.Output())
+#   This is a one-character fix that cannot be upstreamed to cellxgene==1.3.0 (frozen tag).
+#   See: https://github.com/chanzuckerberg/cellxgene/blob/1.3.0/server/common/fbs/matrix.py
+RUN pip install --no-cache-dir cellxgene==1.3.0 && \
+    FBS_MATRIX=$(python3 -c "import server.common.fbs.matrix as m; print(m.__file__)") && \
+    sed -i 's/return builder\.Output()/return bytes(builder.Output())/' "$FBS_MATRIX" && \
+    echo "Patched $FBS_MATRIX" && \
+    grep 'return bytes' "$FBS_MATRIX"
 
 # cellxgene listens on 0.0.0.0:5005 (port passed via CLI args in aci_backend.py)
 EXPOSE 5005
