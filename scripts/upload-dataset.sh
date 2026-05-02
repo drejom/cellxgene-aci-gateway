@@ -9,7 +9,7 @@ set -euo pipefail
 : "${ACI_FILES_ACCOUNT:?required}"
 : "${ACI_FILES_KEY:?required}"
 : "${ACI_FILES_SHARE:=cellxgene-data}"
-: "${AZURE_RESOURCE_GROUP:?required}"
+: "${AZURE_RESOURCE_GROUP:=RG-KDL-CORE}"
 
 FILE="${1:?Usage: $0 /path/to/dataset.h5ad}"
 BASENAME=$(basename "$FILE")
@@ -27,8 +27,8 @@ echo "==> Done: https://${ACI_FILES_ACCOUNT}.file.core.windows.net/${ACI_FILES_S
 # Invalidate any running ACI for this dataset so the next access provisions
 # a fresh container that mounts the new file.
 # Name derivation must match ACIBackend._container_group_name() in aci_backend.py:
-#   stem = splitext(basename)[0], lowercase alphanumeric+hyphens, max 50 chars
-STEM=$(basename "$BASENAME" .h5ad | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/-$//' | cut -c1-50)
+#   stem = splitext(basename)[0], replace non-alphanumeric with '-', lowercase, max 50 chars
+STEM=$(printf '%s' "${BASENAME%.*}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | cut -c1-50)
 ACI_NAME="cellxgene-${STEM}"
 
 echo "==> Invalidating ACI container: $ACI_NAME (if running)"
