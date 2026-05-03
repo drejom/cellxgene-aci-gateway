@@ -150,13 +150,13 @@ footer { padding: 0 60px 48px; max-width: 820px; }
     </div>
     <div class="notice-row">
       <span class="pill pill-provisioning" id="status-pill"><span class="pill-dot"></span>Provisioning</span>
-      Allow <strong>2–3 minutes</strong> for the container to provision and load the dataset
+      <span id="timing-hint">Allow <strong>2&#8211;3 minutes</strong> for the container to provision and load the dataset</span>
     </div>
   </div>
 </main>
 
 <footer>
-  <a href="{{ url_for('index') }}" class="back-link">← Back to datasets</a>
+  <a href="{{ url_for('index') }}" class="back-link">&larr; Back to datasets</a>
 </footer>
 
 <script>
@@ -167,10 +167,32 @@ if (out) out.scrollTop = out.scrollHeight;
 // Derive dataset name from URL path: /view/<name>/
 var dataset = decodeURIComponent(window.location.pathname.split('/').filter(Boolean)[1] || '');
 var statusPill = document.getElementById('status-pill');
+var timingHint = document.getElementById('timing-hint');
+
+// Per-dataset timing estimates (measured from aci_timing.jsonl).
+// Key: stem of the dataset filename, lowercased. Value: human-readable estimate.
+var DATASET_TIMING = {
+  'umass_kent_annotated':           '~3 min',
+  'umass_kent_pankbase_integrated': '~10 min',
+};
+var DATASET_SIZE = {
+  'umass_kent_annotated':           '6 GB, 198 K cells',
+  'umass_kent_pankbase_integrated': '32 GB, 510 K cells',
+};
+(function() {
+  var stem = dataset.replace(/\.h5ad$/i, '').toLowerCase();
+  var est  = DATASET_TIMING[stem];
+  var sz   = DATASET_SIZE[stem];
+  if (est) {
+    var detail = sz ? ' (' + sz + ')' : '';
+    timingHint.innerHTML = 'Allow <strong>' + est + '</strong> to provision and load this dataset' + detail;
+  }
+})();
+
 var PILL_STATES = {
   provisioning: { cls: 'pill-provisioning', label: 'Provisioning' },
   loading:      { cls: 'pill-loading',      label: 'Loading' },
-  ready:        { cls: 'pill-ready',        label: 'Ready — redirecting…' },
+  ready:        { cls: 'pill-ready',        label: 'Ready — redirecting\u2026' },
   error:        { cls: 'pill-error',        label: 'Error' },
 };
 async function pollStatus() {
