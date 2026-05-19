@@ -51,6 +51,30 @@ from flask import jsonify
 from cellxgene_gateway.cache_entry import CacheEntryStatus
 from cellxgene_gateway.backend_cache import BackendCache
 
+def _check_aci_state(file_path):
+    """Check live ACI container state for a dataset. Returns None if ACI backend not active."""
+    try:
+        from cellxgene_gateway import backend_cache
+        be = backend_cache.process_backend
+        if not hasattr(be, '_client'):
+            return None
+        group_name = be._container_group_name(file_path)
+        cg = be._client.container_groups.get(
+            os.environ.get("AZURE_RESOURCE_GROUP", "RG-KDL-CORE"), group_name)
+        prov = cg.provisioning_state
+        c_state = None
+        if cg.containers and cg.containers[0].instance_view:
+            c_state = cg.containers[0].instance_view.current_state.state
+        if prov == "Succeeded" and c_state == "Running":
+            return "loading"
+        elif prov in ("Creating", "Pending"):
+            return "provisioning"
+        elif c_state == "Terminated" or prov in ("Failed", "Canceled"):
+            return "error"
+    except Exception:
+        pass
+    return None
+
 @gw.app.route("/api/status")
 def _api_status():
     """
@@ -58,7 +82,7 @@ def _api_status():
     Provisioning = CacheEntryStatus.loading + no _aci_base_url yet
     Loading      = CacheEntryStatus.loading + _aci_base_url set (ACI up, cellxgene reading)
     Ready        = CacheEntryStatus.loaded
-    Error        = CacheEntryStatus.error
+    Error        = CacheEntryStatus.error (cross-checked with live ACI state)
     """
     result = {}
     for entry in gw.cache.entry_list:
@@ -66,9 +90,10 @@ def _api_status():
         if entry.status == CacheEntryStatus.loaded:
             result[fname] = "ready"
         elif entry.status == CacheEntryStatus.error:
-            result[fname] = "error"
+            # Cross-check live ACI state — the cache error may be stale
+            live = _check_aci_state(entry.key.file_path)
+            result[fname] = live if live and live != "error" else "error"
         elif entry.status == CacheEntryStatus.loading:
-            # ACI backend sets _aci_base_url once container has an IP
             result[fname] = "loading" if getattr(entry, "_aci_base_url", None) else "provisioning"
         elif entry.status == CacheEntryStatus.terminated:
             result[fname] = "idle"
